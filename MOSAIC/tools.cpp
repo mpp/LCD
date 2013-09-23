@@ -100,6 +100,19 @@ void composeTransformation(const cv::Matx33d &R, const cv::Vec3d &T, cv::Matx44d
     // Put homogeneous variables
     G(3,0) = 0; G(3,1) = 0; G(3,2) = 0; G(3,3) = 1;
 }
+void composeTransformation(const cv::Matx33f &R, const cv::Vec3f &T, cv::Matx44f &G)
+{
+    // Put R on top left
+    G(0,0) = R(0,0); G(0,1) = R(0,1); G(0,2) = R(0,2);
+    G(1,0) = R(1,0); G(1,1) = R(1,1); G(1,2) = R(1,2);
+    G(2,0) = R(2,0); G(2,1) = R(2,1); G(2,2) = R(2,2);
+    
+    // Put T' on top right
+    G(0,3) = T(0); G(1,3) = T(1); G(2,3) = T(2);
+    
+    // Put homogeneous variables
+    G(3,0) = 0; G(3,1) = 0; G(3,2) = 0; G(3,3) = 1;
+}
 
 void decomposeTransformation(const cv::Matx44d &G, cv::Vec3d &r, cv::Vec3d &t)
 {

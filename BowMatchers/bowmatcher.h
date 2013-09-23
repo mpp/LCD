@@ -44,215 +44,28 @@
 
 namespace LCD{
     
+    // BoWMatcher base class
     template<class T> class BoWMatcher
     {
     public:
-//         BoWMatcher(cv::FileStorage &settings);
         
-        /** Compare the frame to the map
-         * @param [in] frame the frame to be compared to the map
+        /** Compare the bow to the map
+         * @param [in] bow the BoW of the frame
          * @param [out] matches the comparison results
-         * @param [out] bow the BoW of the frame
-         * @param [out] kpts the key points of the frame
          */
-        virtual void compare(cv::Mat &frame, std::vector< T > &matches, cv::Mat &bow, std::vector<cv::KeyPoint> &kpts, std::vector< std::vector < int > > &pointIDXOfCLusters, cv::Mat *completeDescriptors) = 0;
+        virtual void compare(const cv::Mat &bow, std::vector< T > &matches) const = 0;
         
         /** Add a frame to the map, use it after compare(...)
          * @param [in] bow the bow to be added to the map
          */
-        virtual void add(cv::Mat &bow) = 0;
-    protected:
-        
-        /** generates a feature detector based on options in the settings file
-         * @param [in] fs the YAML file with the settings
-         */
-        void generateDetector(cv::FileStorage &fs);
-        
-        /** generates a feature detector based on options in the settings file
-         * @param [in] fs the YAML file with the settings
-         */
-        void generateExtractor(cv::FileStorage &fs);
+        virtual void add(const cv::Mat &bow) = 0;
     
     protected:
         
-        cv::Ptr<cv::FeatureDetector>
-            feature_detector_;              //> a feature detector
-        
-        cv::Ptr<cv::DescriptorExtractor>
-            descriptor_extractor_;          //> a descriptor extractor
-        
-        cv::Mat
-            vocabulary_,                    //> the vocabulary
-            cl_tree_;                       //> the Chow-Liu tree
-            
-        cv::Ptr<cv::DescriptorMatcher>  
-            matcher_;                       //> the descriptor matcher that is used by the BOWImgDescriptorExtractor
-            
-        cv::Ptr<cv::BOWImgDescriptorExtractor> 
-            bide_;                          //> the object that extract the BOW descriptor from a frame
-            
+//         cv::Mat
+//             vocabulary_;                    //> the vocabulary
     };
     
-    
-    template<class T> 
-    void BoWMatcher<T>::generateDetector(cv::FileStorage &fs) 
-    {   
-        //create common feature detector and descriptor extractor
-        std::string 
-        detectorMode = fs["FeatureOptions"]["DetectorMode"],
-        detectorType = fs["FeatureOptions"]["DetectorType"];
-        
-        feature_detector_ = NULL;
-        
-        if(detectorMode == "ADAPTIVE") 
-        {
-            
-            if(detectorType != "STAR" && detectorType != "SURF" && detectorType != "FAST") 
-            {
-                std::cerr << "Adaptive Detectors only work with STAR, SURF "
-                "and FAST" << std::endl;
-            }
-            else 
-            {
-                feature_detector_ = new cv::DynamicAdaptedFeatureDetector(cv::AdjusterAdapter::create(detectorType),
-                                                                          fs["FeatureOptions"]["Adaptive"]["MinFeatures"], 
-                                                                          fs["FeatureOptions"]["Adaptive"]["MaxFeatures"], 
-                                                                          fs["FeatureOptions"]["Adaptive"]["MaxIters"]
-                );
-            }
-        } 
-        else if(detectorMode == "STATIC") 
-        {
-            if(detectorType == "STAR") 
-            {
-                
-                feature_detector_ = new cv::StarFeatureDetector(
-                    fs["FeatureOptions"]["StarDetector"]["MaxSize"],
-                    fs["FeatureOptions"]["StarDetector"]["Response"],
-                    fs["FeatureOptions"]["StarDetector"]["LineThreshold"],
-                    fs["FeatureOptions"]["StarDetector"]["LineBinarized"],
-                    fs["FeatureOptions"]["StarDetector"]["Suppression"]);
-                
-            }
-            else if(detectorType == "FAST")
-            {
-                
-                feature_detector_ = new cv::FastFeatureDetector(
-                    fs["FeatureOptions"]["FastDetector"]["Threshold"],
-                    (int)fs["FeatureOptions"]["FastDetector"]
-                    ["NonMaxSuppression"] > 0);     
-                
-            } 
-            else if(detectorType == "SURF") 
-            {
-                
-                #ifdef OPENCV2P4
-                feature_detector_ = new cv::SURF(
-                    fs["FeatureOptions"]["SurfDetector"]["HessianThreshold"],
-                    fs["FeatureOptions"]["SurfDetector"]["NumOctaves"],
-                    fs["FeatureOptions"]["SurfDetector"]["NumOctaveLayers"],
-                    (int)fs["FeatureOptions"]["SurfDetector"]["Extended"] > 0,
-                                                 (int)fs["FeatureOptions"]["SurfDetector"]["Upright"] > 0);
-                
-                #else
-                feature_detector_ = new cv::SurfFeatureDetector(
-                    fs["FeatureOptions"]["SurfDetector"]["HessianThreshold"],
-                    fs["FeatureOptions"]["SurfDetector"]["NumOctaves"],
-                    fs["FeatureOptions"]["SurfDetector"]["NumOctaveLayers"],
-                    (int)fs["FeatureOptions"]["SurfDetector"]["Upright"] > 0);
-                #endif
-            } 
-            else if(detectorType == "SIFT") 
-            {
-                #ifdef OPENCV2P4
-                feature_detector_ = new cv::SIFT(
-                    fs["FeatureOptions"]["SiftDetector"]["NumFeatures"],
-                    fs["FeatureOptions"]["SiftDetector"]["NumOctaveLayers"],
-                    fs["FeatureOptions"]["SiftDetector"]["ContrastThreshold"],
-                    fs["FeatureOptions"]["SiftDetector"]["EdgeThreshold"],
-                    fs["FeatureOptions"]["SiftDetector"]["Sigma"]);
-                #else
-                feature_detector_ = new cv::SiftFeatureDetector(
-                    fs["FeatureOptions"]["SiftDetector"]["ContrastThreshold"],
-                    fs["FeatureOptions"]["SiftDetector"]["EdgeThreshold"]);
-                #endif
-            }
-            else if(detectorType == "MSER") 
-            {
-                
-                feature_detector_ = new cv::MserFeatureDetector(
-                    fs["FeatureOptions"]["MSERDetector"]["Delta"],
-                    fs["FeatureOptions"]["MSERDetector"]["MinArea"],
-                    fs["FeatureOptions"]["MSERDetector"]["MaxArea"],
-                    fs["FeatureOptions"]["MSERDetector"]["MaxVariation"],
-                    fs["FeatureOptions"]["MSERDetector"]["MinDiversity"],
-                    fs["FeatureOptions"]["MSERDetector"]["MaxEvolution"],
-                    fs["FeatureOptions"]["MSERDetector"]["AreaThreshold"],
-                    fs["FeatureOptions"]["MSERDetector"]["MinMargin"],
-                    fs["FeatureOptions"]["MSERDetector"]["EdgeBlurSize"]);
-                
-            }
-            else 
-            {
-                std::cerr << "Could not create detector class. Specify detector "
-                "options in the settings file" << std::endl;
-            }
-        } 
-        else 
-        {
-            std::cerr << "Could not create detector class. Specify detector "
-            "mode (static/adaptive) in the settings file" << std::endl;
-        }
-    }
-    
-    template<class T> 
-    void BoWMatcher<T>::generateExtractor(cv::FileStorage &fs)
-    {
-        std::string 
-        extractorType = fs["FeatureOptions"]["ExtractorType"];
-        
-        descriptor_extractor_ = NULL;
-        
-        if(extractorType == "SIFT") 
-        {
-            #ifdef OPENCV2P4
-            descriptor_extractor_ = new cv::SIFT(
-                fs["FeatureOptions"]["SiftDetector"]["NumFeatures"],
-                fs["FeatureOptions"]["SiftDetector"]["NumOctaveLayers"],
-                fs["FeatureOptions"]["SiftDetector"]["ContrastThreshold"],
-                fs["FeatureOptions"]["SiftDetector"]["EdgeThreshold"],
-                fs["FeatureOptions"]["SiftDetector"]["Sigma"]);
-            #else
-            descriptor_extractor_ = new cv::SiftDescriptorExtractor();
-            #endif
-            
-        } 
-        else if(extractorType == "SURF") 
-        {
-            
-            #ifdef OPENCV2P4
-            descriptor_extractor_ = new cv::SURF(
-                fs["FeatureOptions"]["SurfDetector"]["HessianThreshold"],
-                fs["FeatureOptions"]["SurfDetector"]["NumOctaves"],
-                fs["FeatureOptions"]["SurfDetector"]["NumOctaveLayers"],
-                (int)fs["FeatureOptions"]["SurfDetector"]["Extended"] > 0,
-                                                 (int)fs["FeatureOptions"]["SurfDetector"]["Upright"] > 0);
-            
-            #else
-            descriptor_extractor_ = new cv::SurfDescriptorExtractor(
-                fs["FeatureOptions"]["SurfDetector"]["NumOctaves"],
-                fs["FeatureOptions"]["SurfDetector"]["NumOctaveLayers"],
-                (int)fs["FeatureOptions"]["SurfDetector"]["Extended"] > 0,
-                                                                    (int)fs["FeatureOptions"]["SurfDetector"]["Upright"] > 0);
-            #endif
-            
-        } 
-        else 
-        {
-            std::cerr << "Could not create Descriptor Extractor. Please specify extractor type in settings file" << std::endl;
-        }
-        
-    }
     
 }   // namespace LCD
 

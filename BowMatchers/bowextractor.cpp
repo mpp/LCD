@@ -30,16 +30,38 @@
 
 #include "bowextractor.h"
 
-BOWExtractor::BOWExtractor(const cv::Ptr<cv::DescriptorMatcher>& dmatcher, const cv::FileStorage fs)
-        : dmatcher_(dmatcher)
+namespace LCD {
+
+BOWExtractor::BOWExtractor(const cv::FileStorage fs)
 {
-//     mo = new MOSAIC::MOSAIC(fs);
+    dmatcher_ = new cv::FlannBasedMatcher();
+    
+    cv::FileStorage vocab_path;
+    cv::Mat vocabulary;
+    std::string vocabPath = fs["FilePaths"]["Vocabulary"];
+    
+    //load the vocabulary
+    std::cout << "Loading Vocabulary" << std::endl;
+    
+    vocab_path.open(vocabPath, cv::FileStorage::READ);
+    
+    vocab_path["Vocabulary"] >> vocabulary;
+    
+    if (vocabulary.empty())
+    {
+        std::cerr << vocabPath << ": Vocabulary not found" << std::endl;
+        exit(-1006);
+    }
+    
+    setVocabulary(vocabulary);
+    
+    vocab_path.release();
 }
 
 void BOWExtractor::setVocabulary(const cv::Mat& vocabulary)
 {
     dmatcher_->clear();
-    vocabulary_ = vocabulary;
+    std::cout << "righe vocabolario" << vocabulary.rows << std::endl;
     dmatcher_->add( std::vector<cv::Mat>(1, vocabulary) );
 }
 
@@ -47,9 +69,10 @@ void BOWExtractor::compute(const cv::Mat& descriptors, cv::Mat& bow, std::vector
 {
     bow.release();
     
-    int clusterCount = vocabulary_.rows;
+    int clusterCount = dmatcher_->getTrainDescriptors().at(0).rows;
+//     std::cout << "clustercount" << clusterCount << std::endl;
     
-    // Match keypoint descriptors to cluster center (to vocabulary)
+    // Match keypoint descriptors to cluster center (to vocabuslary)
     std::vector<cv::DMatch> matches;
     dmatcher_->match( descriptors, matches );
     
@@ -73,45 +96,4 @@ void BOWExtractor::compute(const cv::Mat& descriptors, cv::Mat& bow, std::vector
     bow /= descriptors.rows;
 }
 
-
-// void BOWExtractor::compute(const MOSAIC::framePosePackage& fpp, cv::Mat& bow, std::vector< cv::KeyPoint > &kpts, std::vector< std::vector< int > >& pointIdxsOfClusters, cv::Mat& descriptors)
-// {
-//     bow.release();
-//     
-//     int clusterCount = vocabulary_.rows;
-//     
-//     // Compute descriptors for the image.
-//     mo->setFramesAndPoses(fpp);
-//     
-//     cv::Mat descriptorsBOW;
-//     mo->computeDescriptors(kpts, descriptorsBOW, descriptors);
-//     
-//     if (kpts.empty())
-//     {
-//         std::cout << "BOWExtractor said: Bad couple of images." << std::endl;
-//         return;
-//     }
-//     
-//     // Match keypoint descriptors to cluster center (to vocabulary)
-//     std::vector<cv::DMatch> matches;
-//     dmatcher_->match( descriptorsBOW, matches );
-//     
-//     // Compute image descriptor
-//     pointIdxsOfClusters.clear();
-//     pointIdxsOfClusters.resize(clusterCount);
-//     
-//     bow = cv::Mat( 1, clusterCount, CV_32FC1, cv::Scalar::all(0.0) );
-//     float *dptr = (float*)bow.data;
-//     for( size_t i = 0; i < matches.size(); i++ )
-//     {
-//         int queryIdx = matches[i].queryIdx;
-//         int trainIdx = matches[i].trainIdx; // cluster index
-//         CV_Assert( queryIdx == (int)i );
-//         
-//         dptr[trainIdx] = dptr[trainIdx] + 1.f;
-//         pointIdxsOfClusters[trainIdx].push_back( queryIdx );
-//     }
-//     
-//     // Normalize image descriptor.
-//     bow /= descriptorsBOW.rows;
-// }
+} // namespace LCD

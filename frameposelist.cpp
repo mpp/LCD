@@ -30,6 +30,7 @@
 #include "frameposelist.h"
 
 #include <limits>
+#include <cmath>
 
 namespace LCD {
     
@@ -48,7 +49,7 @@ namespace LCD {
                             unsigned int timestamp, bool isOnMap, int mapIndex, 
                             cv::Mat *bow, std::vector<cv::KeyPoint> *kpts, 
                             std::vector< std::vector < int > > *pointIDXOfCLusters,
-                            cv::Mat *completeDescriptors
+                            cv::Mat *completeDescriptors, std::vector<cv::Vec3d> *triangulated
                            )
     {
         FramePose temp(framePath, poseT, poseR, timestamp, isOnMap, mapIndex);
@@ -73,14 +74,20 @@ namespace LCD {
             temp.complete_descriptors_ = * completeDescriptors;
         }
         
+        if (triangulated != 0)
+        {
+            temp.triangulated_points_ = *triangulated;
+        }
+        
         list_->push_back(temp);
     }
     
     void FramePoseList::addDescriptorsToMapFrame(int mapIndex, std::vector< cv::KeyPoint >* kpts, 
                                                  std::vector< std::vector< int > >* pointIDXOfCLusters, 
                                                  cv::Mat* completeDescriptors, std::vector< std::pair<int, int> > *matchesIndices,
-                                                 cv::Mat *accorpatedDescriptors )
+                                                 cv::Mat *accorpatedDescriptors, std::vector<cv::Vec3d> *triangulated )
     {
+        /// TODO:manage the addition of triangulated points
         for ( std::vector<FramePose>::iterator l = list_->begin(); l != list_->end(); l++ )
         {
             if (l->is_on_map_)
@@ -92,6 +99,7 @@ namespace LCD {
                         std::vector< std::pair<int, int> >::iterator m_it = matchesIndices->begin();
                         std::vector< cv::KeyPoint >::iterator k_it_base = kpts->begin();
                         std::vector< std::vector<int> >::iterator i_it_base = pointIDXOfCLusters->begin();
+                        std::vector< cv::Vec3d >::iterator pt_it_base = triangulated->begin();
                         int actualIndex = 0;
                         
                         std::vector<int>
@@ -114,6 +122,7 @@ namespace LCD {
                                 
                             l->kpts_.at(itemToRemove) = kpts->at(newItem);
                             l->point_IDX_of_clusters_.at(itemToRemove) = pointIDXOfCLusters->at(newItem);
+                            l->triangulated_points_.at(itemToRemove) = triangulated->at(newItem);
                             
                             // swap the mat row itemToRemove
                             for (std::size_t col = 0; col < l->complete_descriptors_.cols; col++)
@@ -140,7 +149,8 @@ namespace LCD {
                         
                         for (std::size_t actualRow = 0; actualRow < completeDescriptors->rows; actualRow++)
                         {
-                            // if actual row is relative to a match: do nothing, update the match index
+                            // if actual row is relative to a match: update the match index and remove the element
+                            // from vectors
                             if (matchIndices[actualMatchIndex] == actualRow)
                             {
                                 actualMatchIndex++;
@@ -150,6 +160,9 @@ namespace LCD {
                                 
                                 pointIDXOfCLusters->erase((i_it_base+actualRow));
                                 i_it_base = pointIDXOfCLusters->begin();
+                                
+                                triangulated->erase((pt_it_base+actualRow));
+                                pt_it_base = triangulated->begin();
                             }
                             // else copy the descriptor in the new descriptor matrix
                             else
@@ -167,10 +180,16 @@ namespace LCD {
                         
                     }
                     
+                    // Insert new values in the frame-pose data
                     std::cout << l->kpts_.size() << "+" << kpts->size() << " = ";
                     l->kpts_.reserve(kpts->size());
                     l->kpts_.insert(l->kpts_.end(), kpts->begin(), kpts->end());
                     std::cout << l->kpts_.size() << std::endl;
+                    
+                    std::cout << l->triangulated_points_.size() << "+" << triangulated->size() << " = ";
+                    l->triangulated_points_.reserve(triangulated->size());
+                    l->triangulated_points_.insert(l->triangulated_points_.end(), triangulated->begin(), triangulated->end());
+                    std::cout << l->triangulated_points_.size() << std::endl;
                     
                     std::cout << l->point_IDX_of_clusters_.size() << "+" << pointIDXOfCLusters->size() << " = ";
                     l->point_IDX_of_clusters_.reserve(pointIDXOfCLusters->size());
@@ -309,7 +328,9 @@ namespace LCD {
         return distance;
     }
 
-    int FramePoseList::descriptorMatcher(cv::Mat *queryDescriptors, int mapIndexToCompare, std::vector< std::pair<int, int> > &matchIndices)
+    int FramePoseList::descriptorMatcher(const cv::Mat *queryDescriptors, 
+                                         const int mapIndexToCompare, 
+                                         std::vector< std::pair<int, int> > &matchIndices)
     {
         if (mapIndexToCompare < 0)
         {
@@ -370,6 +391,86 @@ namespace LCD {
             return 0;
         }
         
+    }
+
+    double FramePoseList::computeScore(const cv::Mat* queryDescriptors, 
+                                    const std::vector< cv::Vec3d >& triangulatedPoints, 
+                                    const int mapIndexToCompare, 
+                                    std::vector< std::pair< int, int > >& matchIndices)
+    {
+        /**
+         * The metric consists in a comparison of the spatial distribution of triangulated features points.
+         * We decided to use the distances between all the features points involved in the matches. 
+         * 
+         * If there are n matches, there are binomial(n,2) couples/distances to evaluate.
+         * 
+         * The score function is:
+         *  
+         * score = n * ( sum from 1 to binomial(n,2) of (f(delta)) ) / ( binomial(n,2) )
+         * 
+         * where delta is the difference (absolute value) a pair of associated distances.
+         * 
+         * f is exp( - k * delta ), where k is a parameter to correct the slope of the function.
+         */
+        
+        // Get matches and matches indices
+        int numOfMatches = descriptorMatcher(queryDescriptors, mapIndexToCompare, matchIndices);
+        
+        if (numOfMatches <= 2)
+        {
+            return 0;
+        }
+        
+        FramePose fp;
+        getMapFramePoseAt(mapIndexToCompare, fp);
+        
+//         std::cout << fp.triangulated_points_.size() << std::endl;
+        
+        double
+            sumOfDeltas = 0;
+            
+//         int count = 0;
+        // Compute interfeature distances
+        for (std::size_t i = 0; i < numOfMatches - 1; i++)
+        {
+            for (std::size_t j = i+1; j < numOfMatches; j++)
+            {
+                double
+                    d1 = cv::norm(triangulatedPoints[matchIndices[i].first] - triangulatedPoints[matchIndices[j].first]),
+                    d2 = cv::norm(fp.triangulated_points_[matchIndices[i].second] - fp.triangulated_points_[matchIndices[j].second]);
+                
+                double 
+                    delta = std::abs( d1 - d2 );
+                    
+                sumOfDeltas += (exp( -(0.3 * delta)) );
+//                 count++;
+            }
+        }
+//         std::cout << 0.5*(numOfMatches-1)*numOfMatches << " = " << count << std::endl;
+        
+        // (nC2) = 0.5*(numOfMatches-1)*numOfMatches
+        // numOfMatches * sumOfDeltas / ( 0.5*(numOfMatches-1)*numOfMatches ) 
+        // = 2 * sumOfDeltas / (numOfMatches-1)
+        
+//         std::cout << numOfMatches * sumOfDeltas / ( 0.5*(numOfMatches-1)*numOfMatches ) << " = " << 2 * sumOfDeltas / (numOfMatches-1) << std::endl;
+        
+        return 2 * sumOfDeltas / (numOfMatches-1);
+    }
+
+    int FramePoseList::frameOnMap()
+    {
+        int count = 0;
+        for (std::vector<FramePose>::iterator l = list_->begin(); l != list_->end(); l++)
+        {
+            if ((*l).is_on_map_)
+            {
+                if ((*l).map_index_ >= 0)
+                {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     

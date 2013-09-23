@@ -22,6 +22,7 @@ typedef struct framePair_
     cv::Mat bow, descriptors;
     std::vector< std::vector<int> > IDX;
     std::vector< cv::KeyPoint > kpts;
+    std::vector< cv::Vec3d > triangulated;
 } framePair;
 
 int main(int argc, char **argv) {
@@ -64,6 +65,27 @@ int main(int argc, char **argv) {
         exit(-1);
     }
     
+    // 1 Camera-IMU translation
+    std::vector<float>
+        translationIC_vector;
+    fs["CameraSettings"]["translationIC"] >> translationIC_vector;
+    cv::Vec3f
+        translationIC(translationIC_vector[0],translationIC_vector[1],translationIC_vector[2]);
+    
+    // 2 Camera-IMU rotation
+    std::vector<float>
+        rodriguesIC_vector;
+    fs["CameraSettings"]["rodriguesIC"] >> rodriguesIC_vector;
+    cv::Vec3f
+        rodriguesIC(rodriguesIC_vector[0],rodriguesIC_vector[1],rodriguesIC_vector[2]);
+    
+    cv::Matx33f rotationIC;
+    cv::Rodrigues(rodriguesIC, rotationIC);
+    
+    // 3 Camera-IMU transformation
+    cv::Matx44f gIC;
+    MOSAIC::composeTransformation(rotationIC, translationIC, gIC);
+    
     /////////////////////////////    
     /// Setup the Flann Bow Matcher
     
@@ -83,7 +105,9 @@ int main(int argc, char **argv) {
         confusionMatrix;       
     
     int 
-        similarFrameMapIndex = -1,
+        similarFrameMapIndex = -1;
+    
+    double
         bestScore = -1;
     
     double
@@ -112,12 +136,15 @@ int main(int argc, char **argv) {
     std::string 
         basePath = fs["FilePaths"]["TestImagesBasePath"];
     
+    cv::Vec3f
+        lastR, lastT; // T and R transformation of last frame in the map
+        
     /////////////////////////////    
     /// Frame selection variables
     int
-        corrispondenceThreshold = 0, 
         corrispondenceCounter = 0;
     double
+        corrispondenceThreshold = 0, 
         maxBOWDistanceThreshold;
         
     fs["loopDetectorOptions"]["scoreThreshold"] >> corrispondenceThreshold;
@@ -168,6 +195,9 @@ int main(int argc, char **argv) {
         
         cv::FileNode KPTSVector =descriptorsContainer["KPTS"];
         cv::read(KPTSVector, fp.kpts);
+        
+        cv::FileNode TPVector = descriptorsContainer["TriangulatedPoints"];
+        cv::read(TPVector, fp.triangulated);
         
         cv::FileNode IDXVector = descriptorsContainer["IDX"];
         
@@ -230,7 +260,12 @@ int main(int argc, char **argv) {
         
         std::vector< std::pair<int, int> > matchesIndices;
         
-        std::cout << "Frame " << descIT->fA << " scores:"; 
+        if (frameCount == 66)
+        {
+            std::cout << "HALT: debug" << std::endl;
+        }
+        
+        std::cout << "Frame " << descIT->fA << std::endl;/* << " scores:"; */
         for (size_t i = 0; i < k; i++)
         {
             // Check boundaries
@@ -241,7 +276,12 @@ int main(int argc, char **argv) {
             
             std::vector< std::pair<int, int> > temp;
             
-            int score = list.descriptorMatcher(&completeDescriptors, matches[i].imgIdx, temp);
+            /// TODO: update the score using the triangulated points
+//             int score = list.descriptorMatcher(&completeDescriptors, matches[i].imgIdx, temp);
+            
+            double score = list.computeScore(&completeDescriptors, (descIT->triangulated), matches[i].imgIdx, temp);
+            
+            std::cout << "# of matches: " << temp.size() << " score: " << score << std::endl; 
             
             std::cout << " (" << matches[i].imgIdx << ", " << score << ", " << matches[i].distance << ") - ";
             
@@ -270,53 +310,55 @@ int main(int argc, char **argv) {
         {
             newPlace = true;
             vectorBM.add(bow);
-            list.add(basePath + frameName, fakeT, fakeR, fakeTimestamp, true, mapCount++, &bow, &(descIT->kpts), &(descIT->IDX), &completeDescriptors);
+            list.add(basePath + frameName,
+                     fakeT, fakeR, fakeTimestamp, 
+                     true, mapCount++, &bow,
+                     &(descIT->kpts), &(descIT->IDX),
+                     &completeDescriptors, &(descIT->triangulated));
+            
+            lastR = (descIT->rA);
+            lastT = (descIT->tA);
         }
         else
         {
             cv::Mat accorpatedDescriptors;
 //       list.addDescriptorsToMapFrame(similarFrameMapIndex, &(descIT->kpts), &(descIT->IDX), &completeDescriptors);
-            list.addDescriptorsToMapFrame(similarFrameMapIndex, &(descIT->kpts), &(descIT->IDX), &completeDescriptors, &matchesIndices);
-            list.add(basePath + frameName, fakeT, fakeR, fakeTimestamp, false, -1, &bow, &(descIT->kpts), &(descIT->IDX), &completeDescriptors);
             
-//             /// REDO The match againist the map
-//             std::cout << "Repeat the  " << descIT->fA << " scores:"; 
-//             int updatedSimilarFrameMapIndex = 0;
-//             for (size_t i = 0; i < k; i++)
-//             {
-//                 // Check boundaries
-//                 if (i >= matches.size())
-//                 {
-//                     break;
-//                 }
-//                 
-//                 // Avoid to check with the same frame in the map
-//                 if (matches[i].imgIdx == similarFrameMapIndex)
-//                 {
-//                     continue;
-//                 }
-//                 
-//                 std::vector< std::pair<int, int> > temp;
-//                 
-//                 int score = list.descriptorMatcher(&accorpatedDescriptors, matches[i].imgIdx, temp);
-//                 
-//                 std::cout << " (" << matches[i].imgIdx << ", " << score << ", " << matches[i].distance << ") - ";
-//                 
-//                 if (score > bestScore /*&& matches[i].distance < maxBOWDistanceThreshold*/)
-//                 {
-//                     updatedSimilarFrameMapIndex = matches[i].imgIdx;
-//                     bestScore = score;
-//                     bestDistance = matches[i].distance;
-//                     
-//                     matchesIndices = std::vector< std::pair<int,int> >(temp.begin(), temp.end());
-//                 }
-//             }
-//             std::cout << std::endl;
-// 
-//             std::cout << "NEW Best match: index " << updatedSimilarFrameMapIndex << ", score " << bestScore << ", distance " << bestDistance << std::endl;
-//         
-//             // hack for following code:
-//             similarFrameMapIndex = updatedSimilarFrameMapIndex;
+            if (similarFrameMapIndex == list.frameOnMap() - 1)
+            {
+                // Move the points to the last frame reference
+                cv::Matx44f
+                    lastRT, actualRT, gLA;
+                cv::Matx33f
+                    RL, RA;
+                    
+                cv::Rodrigues(lastR, RL);
+                cv::Rodrigues((descIT->rA), RA);
+                
+                MOSAIC::composeTransformation(RL, lastT, lastRT);
+                MOSAIC::composeTransformation(RA, (descIT->tA), actualRT);
+                
+                gLA = gIC.inv() * actualRT.inv() * lastRT * gIC;
+                
+                for (std::size_t i = 0; i < descIT->triangulated.size(); i++)
+                {
+                    cv::Vec3d *point = &(descIT->triangulated.at(i));
+                    cv::Vec4f pointOmog(point->val[0], point->val[1], point->val[2], 1);
+                    
+                    pointOmog = gLA * pointOmog;
+                    
+                    point->val[0] = pointOmog[0];
+                    point->val[1] = pointOmog[1];
+                    point->val[2] = pointOmog[2];
+                }
+                
+                list.addDescriptorsToMapFrame(similarFrameMapIndex, &(descIT->kpts), &(descIT->IDX), 
+                                              &completeDescriptors, &matchesIndices, &accorpatedDescriptors, &(descIT->triangulated));
+            }
+            list.add(basePath + frameName, 
+                     fakeT, fakeR, fakeTimestamp,
+                     false, -1, &bow, &(descIT->kpts),
+                     &(descIT->IDX), &completeDescriptors, &(descIT->triangulated));
         }
         
         
@@ -360,8 +402,9 @@ int main(int argc, char **argv) {
 //                     std::cout << "Map frames: " << mapCount << std::endl;
                             
         std::string corrispondenceStr =  "# of similar descriptors: " 
-                                + boost::lexical_cast<std::string>(bestScore)
-                                + "/" + boost::lexical_cast<std::string>(completeDescriptors.rows);
+                                + boost::lexical_cast<std::string>(matchesIndices.size())
+                                + "/" + boost::lexical_cast<std::string>(completeDescriptors.rows)
+                                + " score: " + boost::lexical_cast<std::string>(bestScore);
         
         std::string
             rightInfoDisplay = "Most similar map frame: " 
@@ -375,8 +418,8 @@ int main(int argc, char **argv) {
         
         matchviewer.update(window, similarFrameMapIndex, !newPlace, list, matches, matchesIndices, leftInfoDisplay, rightInfoDisplay);
 
-        cv::imshow("Window", window);
-        cv::waitKey(150);
+//         cv::imshow("Window", window);
+//         cv::waitKey(150);
         cv::imwrite("Screenshots/screen_" + boost::lexical_cast<std::string>(frameCount) + ".jpg",window);
         std::cout << "Frame #:" << frameCount << std::endl;
      

@@ -82,6 +82,8 @@ namespace LCD {
         std::vector< std::vector< int > >
             point_IDX_of_clusters_; //> point_IDX_of_clusters_[i] contains the index of keypoints relative to cluster i
     
+        std::vector<cv::Vec3d>
+            triangulated_points_;   //> 3D points of the features
     };
 
 } // namespace LCD

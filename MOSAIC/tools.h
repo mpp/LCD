@@ -52,6 +52,7 @@ void computeCameraMatixAndDistCoeff(const cv::FileStorage &settings, cv::Matx33d
 /** Compose a 4x4 transform matrix from R and T
  */
 void composeTransformation(const cv::Matx33d &R, const cv::Vec3d &T, cv::Matx44d &G);
+void composeTransformation(const cv::Matx33f &R, const cv::Vec3f &T, cv::Matx44f &G);
 
 /** Decompose a 4x4 transform matrix to R and T
  */

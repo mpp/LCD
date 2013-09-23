@@ -36,10 +36,14 @@
 
 #include "../MOSAIC/mosaic.h"
 
+namespace LCD {
+
 class BOWExtractor
 {
 public:
-    BOWExtractor(const cv::Ptr<cv::DescriptorMatcher>& dmatcher, const cv::FileStorage fs);
+    
+    BOWExtractor(const cv::FileStorage fs);
+    
     void setVocabulary( const cv::Mat& vocabulary );
     
     /** Compute the BOW and the array of cluster's indices
@@ -49,13 +53,13 @@ public:
      */
     void compute(const cv::Mat& descriptors, cv::Mat& bow, std::vector< std::vector< int > >& pointIdxsOfClusters);
     
-//     void compute(const MOSAIC::framePosePackage &fpp, cv::Mat &bow,
-//                  std::vector< cv::KeyPoint >& kpts,
-//                  std::vector< std::vector< int > > &pointIdxsOfClusters, cv::Mat& descriptors);
 private:
-    cv::Mat vocabulary_;
-    cv::Ptr<cv::DescriptorMatcher> dmatcher_;
-    MOSAIC::MOSAIC *mo;
+    
+    cv::Ptr<cv::DescriptorMatcher>
+        dmatcher_;
+    
 };
+
+} // namespace LCD
 
 #endif // BOWEXTRACTOR_H

@@ -107,7 +107,7 @@ MOSAIC::MOSAIC::MOSAIC(cv::FileStorage& fs,
     reference_frame_name_ = refName;
 }
 
-void MOSAIC::computeDescriptors(std::vector< cv::KeyPoint >& kpts, cv::Mat& descriptors, cv::Mat& descriptors128)
+void MOSAIC::computeDescriptors(std::vector< cv::KeyPoint >& kpts, cv::Mat& descriptors, cv::Mat& descriptors128, std::vector<cv::Vec3d> &triangulated)
 {
     
     if (triangulated_points_.size() < minimum_number_of_matches_)
@@ -116,6 +116,8 @@ void MOSAIC::computeDescriptors(std::vector< cv::KeyPoint >& kpts, cv::Mat& desc
         return;
     }
     
+    triangulated = std::vector<cv::Vec3d>(triangulated_points_.begin(), triangulated_points_.end());
+    
     for (std::vector<cv::Mat>::iterator it = image_points_vector_.begin(); it != image_points_vector_.end(); it++)
     {
         cv::KeyPoint kp;
@@ -123,7 +125,7 @@ void MOSAIC::computeDescriptors(std::vector< cv::KeyPoint >& kpts, cv::Mat& desc
         kp.class_id = 0;
         kp.octave = 0;
         kp.response = 1;
-        kp.size = 128;
+        kp.size = patches_vector_[0].rows;
         
         int half = (int)floor(it->rows/2);
         cv::Vec2d coordinates = it->at<cv::Vec2d>(half);

@@ -70,8 +70,8 @@ int main(int argc, char **argv) {
     /////////////////////////////    
     /// Setup the Flann Bow Matcher
     
-    LCD::VectorBoWMatcher
-        vectorBM(fs);
+    LCD::BOWExtractor
+        bowExtractor(fs);
     
     cv::Mat
         actualFrame,
@@ -188,13 +188,23 @@ int main(int argc, char **argv) {
         ifsLog >> type;
         ifsLog >> temp;
         
-//         if (timestamp > 142089064)
-//         {
-//             break;
-//         }
-        
-        /// XXX: second tranche
-        if (timestamp <= 209619242)
+// FIRST TRANCHE
+// first: 0
+// last: 68659126
+// SECOND TRANCHE
+// first: 68659126
+// last: 140689126
+// THIRD TRANCHE
+// first: 140689126
+// last: 208485940
+// FOURTH TRANCHE
+// first: 208485940
+// last: 281215981
+        if (timestamp > 281215981)
+        {
+            break;
+        }
+        if (timestamp <= 208485940)
         {
             if (kkk % 1000 == 0)
             {
@@ -223,8 +233,6 @@ int main(int argc, char **argv) {
             
             continue;
         }
-        
-        //     std::cout << type << " ";
         
         if (type.compare("POS") == 0)
         {
@@ -273,7 +281,6 @@ int main(int argc, char **argv) {
                         frameB = cv::imread(basePath + frameName, CV_LOAD_IMAGE_GRAYSCALE);
                         
                         /// Pass it to the FLANN BoW Matcher
-                        matches.clear();
                         kpts.clear();
                         pointIDXOfCLusters.clear();
                         
@@ -282,7 +289,9 @@ int main(int argc, char **argv) {
                         
                         // Extract the descriptors
                         cv::Mat descriptorsBOW;
-                        mo.computeDescriptors(kpts, descriptorsBOW, completeDescriptors);
+                        std::vector<cv::Vec3d> triangulatedPoints;
+                        mo.computeDescriptors(kpts, descriptorsBOW, completeDescriptors, triangulatedPoints);
+                        
                         
                         if (kpts.size() < corrispondenceThreshold)
                         {
@@ -298,11 +307,7 @@ int main(int argc, char **argv) {
                             continue;
                         }
                         
-                        vectorBM.computeBOW(descriptorsBOW, bow, pointIDXOfCLusters);
-                        
-                        vectorBM.compare(bow, matches); 
-                        
-                        
+                        bowExtractor.compute(descriptorsBOW, bow, pointIDXOfCLusters);
                         
                         cv::FileStorage outputFile("descriptors/"+referenceFrameName+".yml", cv::FileStorage::WRITE);
                         
@@ -316,10 +321,9 @@ int main(int argc, char **argv) {
                         outputFile << "Descriptors" << completeDescriptors;
                         outputFile << "KPTS" << kpts;
                         outputFile << "IDX" << pointIDXOfCLusters;
+                        outputFile << "TriangulatedPoints" << triangulatedPoints;
                         
                         outputFile.release();
-                        
-                        
                         
                         // reset the flag
                         frameAtaken = false;

@@ -42,52 +42,23 @@ namespace LCD {
     {
     public:
         
-        VectorBoWMatcher(cv::FileStorage &settings);
+        VectorBoWMatcher(const cv::FileStorage &settings);
         
-        /** Compare the frame to the map
-         * @param [in] frame the frame to be compared to the map
-         * @param [out] matches the comparison results
-         * @param [out] bow the BoW of the frame
-         * @param [out] kpts the key points of the frame
-         */
-        void compare(cv::Mat &frame, std::vector< cv::DMatch > &matches, cv::Mat &bow, std::vector<cv::KeyPoint> &kpts, std::vector< std::vector < int > > &pointIDXOfCLusters, cv::Mat *completeDescriptors);
-        
-//         /** Compare the frame to the map for MOSAIC descriptor extractor
-//          * @param [in] fpp MOSAIC pair frame package for triangulation and descriptor extraction
-//          * @param [out] matches the comparison results
-//          * @param [out] bow the BoW of the frame
-//          * @param [out] kpts the key points of the frame
-//          */
-//         void compare(MOSAIC::framePosePackage &fpp, std::vector< cv::DMatch > &matches, cv::Mat &bow, std::vector<cv::KeyPoint> &kpts, std::vector< std::vector < int > > &pointIDXOfCLusters, cv::Mat &completeDescriptors);
-//         
-        
-        /** Compute the BOW using the BOWExtractor class member
-         * @param [in] descriptors a matrix of descriptors, one in each row
-         * @param [out] bow the computed BOW
-         * @param [out] pointIdxsOfClusters the cluster's indices
-         */
-        void computeBOW(const cv::Mat& descriptors, cv::Mat& bow, std::vector< std::vector< int > >& pointIdxsOfClusters);
-        
-        /** Compare the frame to the map for MOSAIC descriptor extractor
+        /** Compare the bow to the map
          * @param [in] bow the BoW of the frame
          * @param [out] matches the comparison results
          */
-        void compare(cv::Mat &bow, std::vector< cv::DMatch > &matches);
+        void compare(const cv::Mat &bow, std::vector< cv::DMatch > &matches) const;
         
         /** Add a frame to the map, use it after compare(...)
          * @param [in] bow the bow to be added to the map
          */
-        void add(cv::Mat &bow);
+        void add(const cv::Mat &bow);
     
     private:
+    
         std::vector<cv::Mat>
             bow_vector_;
-            
-        BOWExtractor
-            *be_;
-            
-        MOSAIC::MOSAIC
-            *mosaic_descriptor_extractor_;
     };
 
 } // namespace LCD

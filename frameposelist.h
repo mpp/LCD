@@ -66,9 +66,16 @@ namespace LCD {
                  unsigned int timestamp, bool isOnMap = false, int mapIndex = -1, 
                  cv::Mat *bow = 0, std::vector<cv::KeyPoint> *kpts = 0, 
                  std::vector< std::vector < int > > *pointIDXOfCLusters = 0,
-                 cv::Mat *completeDescriptors = 0
-                );
+                 cv::Mat *completeDescriptors = 0, std::vector<cv::Vec3d> *triangulated = 0 );
         
+        
+        void addDescriptorsToMapFrame(int mapIndex, std::vector<cv::KeyPoint> *kpts, 
+                                      std::vector< std::vector<int> > *pointIDXOfCLusters, 
+                                      cv::Mat *completeDescriptors, std::vector< std::pair<int, int> > *matchesIndices = 0,
+                                      cv::Mat *accorpatedDescriptors = 0, std::vector<cv::Vec3d> *triangulated = 0 );
+        
+        /** This is deprecated -> new method add also the triangulated points
+         */
         void addDescriptorsToMapFrame(int mapIndex, std::vector<cv::KeyPoint> *kpts, 
                                       std::vector< std::vector<int> > *pointIDXOfCLusters, 
                                       cv::Mat *completeDescriptors, std::vector< std::pair<int, int> > *matchesIndices = 0,
@@ -101,8 +108,16 @@ namespace LCD {
          * @param mapIndexToCompare the index of the frame pose in the map to be compared to the new one
          * @return the number of descriptor matches, computed using FLANN library and a fixed minimum distance threshold
          */
-        int descriptorMatcher(cv::Mat* queryDescriptors, int mapIndexToCompare, std::vector< std::pair< int, int > >& matchIndices);
+        int descriptorMatcher(const cv::Mat* queryDescriptors, 
+                              const int mapIndexToCompare, 
+                              std::vector< std::pair< int, int > >& matchIndices);
         
+        double computeScore(const cv::Mat *queryDescriptors, 
+                         const std::vector<cv::Vec3d> &triangulatedPoints,
+                         const int mapIndexToCompare, 
+                         std::vector< std::pair< int, int > >& matchIndices);
+        
+        int frameOnMap();
     private:
         
         FramePoseList();

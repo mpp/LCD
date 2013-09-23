@@ -68,7 +68,7 @@ public:
 //     void setFramesAndPoses(const framePosePackage &fpp);
     
 //     void computeDescriptors(std::vector<cv::KeyPoint> &kpts, cv::Mat &descriptors);
-    void computeDescriptors(std::vector<cv::KeyPoint> &kpts, cv::Mat &descriptors, cv::Mat &descriptors128);
+    void computeDescriptors(std::vector<cv::KeyPoint> &kpts, cv::Mat &descriptors, cv::Mat &descriptors128, std::vector<cv::Vec3d> &triangulated);
 
     /** Copied from the SURF code, TODO: remove magic numbers
      */
