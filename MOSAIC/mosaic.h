@@ -65,6 +65,8 @@ public:
            const cv::Vec3d& rA, const cv::Vec3d& rB,
            const std::string& refName );
     
+    virtual ~MOSAIC();
+    
 //     void setFramesAndPoses(const framePosePackage &fpp);
     
 //     void computeDescriptors(std::vector<cv::KeyPoint> &kpts, cv::Mat &descriptors);

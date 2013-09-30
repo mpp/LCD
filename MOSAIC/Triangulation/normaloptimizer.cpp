@@ -160,7 +160,7 @@ void evaluateNormal( const double *par, int m_dat,
         
     if (thetaDiff > maxDiff || phiDiff > maxDiff)
     {
-        w = exp((1 + thetaDiff)*(1 + thetaDiff));
+        w = exp((1 + thetaDiff)*(1 + phiDiff));
     }
     
     // compute residuals
@@ -201,6 +201,13 @@ NormalOptimizer::NormalOptimizer(const cv::FileStorage settings, SingleCameraTri
     
 #ifdef ENABLE_VISUALIZER_
     visualizer_ = new pclVisualizerThread();
+#endif
+}
+
+NormalOptimizer::~NormalOptimizer()
+{
+#ifdef ENABLE_VISUALIZER_
+    delete visualizer_;
 #endif
 }
 
@@ -345,6 +352,7 @@ void NormalOptimizer::stopVisualizerThread()
     // join the thread
 //     visualizer_->close();
     workerThread_->join(); 
+    delete workerThread_;
 #endif
 }
 
@@ -381,28 +389,25 @@ void NormalOptimizer::computeOptimizedNormals(std::vector<cv::Vec3d> &points3D, 
         // Set mdat for actual point
         m_dat_ = image_1_points_.size();
         
-        
         if ( 0 >= m_dat_ )
         {
             points3D.erase(actualPointIT);
-//             std::cout << '\b' << "_";
             continue;
         }
+
         
-        // Set the color for the visualizer
-        color_ = new cv::Scalar(colors[index++]);
-        
-        //         if ( angle < 105 )
-        //         {
         if (!optimize_pyramid())
         {
             points3D.erase(actualPointIT);
-//             std::cout << '\b' << "-";
             continue;
         }
         
+        delete image_1_points_MAT_;
+        
 #ifdef ENABLE_VISUALIZER_
+        color_ = new cv::Scalar(colors[index++]);
         visualizer_->keepLastCloud();
+        delete color_;
 #endif
         
         normalsVector.push_back((*actual_norm_));

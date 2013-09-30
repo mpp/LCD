@@ -100,9 +100,6 @@ int main(int argc, char **argv) {
     /////////////////////////////    
     /// Setup the FramePoseList
     
-    LCD::FramePoseList 
-        list(fs);
-    
     std::string 
         temp,
         type,
@@ -331,10 +328,6 @@ int main(int argc, char **argv) {
                 }
                 // reset flag
                 associateFramePos = false;
-            }
-            else 
-            {
-                list.add("", poseTranslation, poseTranslation, timestamp);
             }
         }
         else if (type.compare("IMAGE") == 0)

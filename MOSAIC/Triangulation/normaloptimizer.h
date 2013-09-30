@@ -56,6 +56,8 @@
  public:
      NormalOptimizer(const cv::FileStorage settings, SingleCameraTriangulator* sct);
      
+     ~NormalOptimizer();
+     
      void setImages(const cv::Mat &img1, const cv::Mat &img2);
      
      void computeOptimizedNormals(std::vector< cv::Vec3d >& points3D, std::vector< cv::Vec3d >& normalsVector);

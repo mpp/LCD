@@ -84,7 +84,7 @@ MOSAIC::MOSAIC::MOSAIC(cv::FileStorage& fs,
     cv::Mat
         window;
     drawMatches(imgA_, imgB_, window, kptsA_, kptsB_, matches_, colors_, outliersMask);
-    cv::imwrite("./matches/" + refName + "_Matches.pgm", window);
+//     cv::imwrite("./matches/" + refName + "_Matches.pgm", window);
     
     // 5 - Compute the normals and the features frames
     no_->setImages(imgA_, imgB_);
@@ -105,6 +105,15 @@ MOSAIC::MOSAIC::MOSAIC(cv::FileStorage& fs,
     sct_->projectReferencePointsToImageWithFrames(reference_neighborhood_, features_frames_, patches_vector_, image_points_vector_);
     
     reference_frame_name_ = refName;
+}
+
+MOSAIC::~MOSAIC()
+{
+    std::cout << "Deleting MOSAIC..." << std::endl;
+    delete no_;
+    delete ng_;
+    delete sct_;
+    delete dm_;
 }
 
 void MOSAIC::computeDescriptors(std::vector< cv::KeyPoint >& kpts, cv::Mat& descriptors, cv::Mat& descriptors128, std::vector<cv::Vec3d> &triangulated)
@@ -145,12 +154,12 @@ void MOSAIC::computeDescriptors(std::vector< cv::KeyPoint >& kpts, cv::Mat& desc
         imgA_points;
     drawBackProjectedPoints(imgA_, imgA_points, image_points_vector_, colors_);
     
-    cv::imwrite("./matches/" + reference_frame_name_ + "_ProjPatches.pgm", imgA_points);
+    cv::imwrite("./matches/" + reference_frame_name_ + "_ProjPatches.jpg", imgA_points);
     
-    for (int i = 0; i < patches_vector_.size(); i++)
-    {
-        cv::imwrite("./patches/" + reference_frame_name_ + "_Patch_" + std::to_string(i) + ".pgm", patches_vector_[i]);
-    }
+//     for (int i = 0; i < patches_vector_.size(); i++)
+//     {
+//         cv::imwrite("./patches/" + reference_frame_name_ + "_Patch_" + std::to_string(i) + ".pgm", patches_vector_[i]);
+//     }
 }
     
 // MOSAIC::MOSAIC::MOSAIC(const cv::FileStorage &fs)
